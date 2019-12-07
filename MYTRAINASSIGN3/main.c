@@ -24,37 +24,31 @@
 
 #include "UART0.h"
 #include "sysTick.h"
-
 #include "Process.h"
 #include "registerProcess.h"
 #include "testProcess.h"
 #include "priorityQueue.h"
 #include "ServiceCalls.h"
 
+/*  -------------------------   */
+#include "trainsetInstructionTable.h"
+#include "UART1.h"
+#include "User_Controller.h"
+
 //Initializes the UART interrupts and SysTick
 void main (void){
-
 
     /* initializes each priority level  */
     initPriorityQueue();
     /*  Initializes Mailbox Messaging Structure   */
     initMailBoxList();
 
-    /*  Context Switching   */
-    func_name writeA = &writeAtoConsole;
-    reg_proc(writeA, 9, 2);
-    func_name writeB = &writeBtoConsole;
-    reg_proc(writeB, 10, 3);
-    func_name writeC = &writeCtoConsole;
-    reg_proc(writeC,11, 3);
-
-
+    func_name testT = &test_table;
+    reg_proc(testT,2,3);
 
     func_name communication = &communications;
     reg_proc(communication, 1, 4);
 
-//    func_name proc = &testProcWrite;
-//    reg_proc(proc, 12, 2);
 
     UART0_Init();                                // Initialize UART0
     InterruptEnable(INT_VEC_UART0);              // Enable UART0 interrupts
@@ -65,6 +59,7 @@ void main (void){
 
     /*  Initializes PendSV For Context Switching between processes  */
     init_PendSVPriority();
+
 
     /*  Traps to the kernel to instance first process   */
     SVC();

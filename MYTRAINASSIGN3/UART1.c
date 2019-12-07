@@ -13,6 +13,48 @@
 #include "UART0.h"
 
 
+static char buffer[MAX_PACKET_SIZE];
+static unsigned char data;
+static short receiving = FALSE;
+static unsigned short BufferIndex = 0;
+static short DLE_flg = FALSE;
+int checksum;
+
+void setData(unsigned char in){
+    data = in;
+}
+
+/*
+ * Sends a Char to UART1 output port
+ */
+void writeCharToTrain(unsigned char data){
+    /*  Checks if UART FIFO Full    */
+    while(UART1_FR_R & UART_FR_TXFF);
+    UART1_DR_R = data;
+}
+
+/*
+ * Prepares and sends a frame to the Train
+ * [ STX | Packets | Chksum | ETX ]
+ */
+
+void writeStringToTrain(char *index, short length){
+    unsigned short i;
+    unsigned char checksum = 0;
+    /*  Start Transmission  */
+    writeCharToTrain(STX);
+
+    for(i = 0 ; i < length ; i++){
+        if(*index == DLE || *index == STX || *index == ETX){
+            writeCharToTrain(DLE);
+        }
+        writeCharToTrain(*index);
+        checksum += *index;
+        index++;
+    }
+    writeCharToTrain(~checksum);
+    writeCharToTrain(ETX);
+}
 
 
 void UART1_Init(void)
@@ -50,13 +92,57 @@ void UART1_IntEnable(unsigned long flags)
 
 
 
-static unsigned char buffer[MAX_PACKET_SIZE];
-unsigned char data;
-static short receiving = FALSE;
-static unsigned short BufferIndex = 0;
 
-static
+/*  Adds the UART1 receiving data to the buffer */
+unsigned short enqueueData(){
+    if(BufferIndex < MAX_PACKET_SIZE){
+        buffer[BufferIndex] = data;
+        BufferIndex++;
+        checksum +=data;
+        return TRUE;
+    }
+    return FALSE;
+}
 
+void data_in(){
+    /*  Start Receiving */
+    if(data == STX && receiving == FALSE){
+        receiving = TRUE;
+        BufferIndex = 0;
+        checksum = 0;
+    }
+    else if(receiving && DLE_flg == FALSE){
+        switch(data){
+            case DLE:
+            /*  get next character  */
+                DLE_flg = TRUE;
+                break;
+            case ETX:
+                /*  Check checksum and send up  */
+                receiving = FALSE;
+                if(checksum == -1){
+                    /*  Send up Packet  */
+                    BufferIndex--;
+
+                }
+                break;
+            default:
+                /*  add the data to the buffer  */
+                if(enqueueData() == FALSE){
+                    /*  Something broke, discard   */
+                    receiving = FALSE;
+                }
+                break;
+        }
+    }
+    else if(DLE_flg == TRUE && receiving){
+        /*  DLE flag is true, enqueue next data regardless  */
+        if(enqueueData() == FALSE){
+            /*  Something broke, discard   */
+            receiving = FALSE;
+        }
+    }
+}
 
 void UART1_IntHandler(void)
 {
@@ -69,36 +155,14 @@ void UART1_IntHandler(void)
         /* RECV done - clear interrupt and make char available to application */
         UART1_ICR_R |= UART_INT_RX;
         data = UART1_DR_R;
-
-        /*  Start Receiving */
-        if(data == STX && receiving == FALSE){
-            receiving = TRUE;
-            BufferIndex = 0;
-        }
-        else if(receiving){
-            switch(data){
-                case DLE:
-                /*  get next character  */
-
-                break;
-
-                case ETX:
-                /*  Check checksum and send up  */
-                break;
-
-                default:
-                /*  increment length, keep rolling  */
-                break;
-
-            }
-        }
-
-
+        data_in();
     }
 
     if (UART1_MIS_R & UART_INT_TX)
     {
         /* XMIT done - clear interrupt */
         UART1_ICR_R |= UART_INT_TX;
+        /*  Here we write to the train  */
+
     }
 }
