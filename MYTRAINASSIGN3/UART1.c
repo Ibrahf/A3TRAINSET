@@ -11,7 +11,8 @@
 
 #include "UART1.h"
 #include "UART0.h"
-
+#include "Kernel_Calls.h"
+#include "ServiceCalls.h"
 
 static char buffer[MAX_PACKET_SIZE];
 static unsigned char data;
@@ -19,6 +20,8 @@ static short receiving = FALSE;
 static unsigned short BufferIndex = 0;
 static short DLE_flg = FALSE;
 int checksum;
+static unsigned char packet_isValid = FALSE;
+
 
 void setData(unsigned char in){
     data = in;
@@ -164,5 +167,34 @@ void UART1_IntHandler(void)
         UART1_ICR_R |= UART_INT_TX;
         /*  Here we write to the train  */
 
+    }
+}
+
+/*
+ *
+ */
+void physical_out(){
+    bind(PHYS_OUT_MAILBOX);
+    LETTER * comms;
+    comms->msg = malloc(sizeof(char)*MAX_PACKET_SIZE);
+
+    while(TRUE){
+        comms = recv(ANY, ANY, comms->msg, 8); //TODO: Switch to Letter
+        writeStringToTrain(comms->msg,comms->msg_sz);
+    }
+
+}
+
+void physical_in(){
+    bind(PHYS_IN_MAILBOX);
+    char * msg = malloc(sizeof(char)*MAX_PACKET_SIZE);
+    unsigned short i;
+    while(TRUE){
+        while(packet_isValid == FALSE);
+        packet_isValid = FALSE;
+        for(i=0;i<BufferIndex;i++){
+            msg[i] = buffer[i];
+        }
+        send(1, PHYS_IN_MAILBOX, msg, BufferIndex);
     }
 }

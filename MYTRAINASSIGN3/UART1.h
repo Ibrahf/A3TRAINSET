@@ -30,6 +30,8 @@
 #define ETX     0x03
 #define DLE     0x10
 
+#define PHYS_OUT_MAILBOX    3
+#define PHYS_IN_MAILBOX     4
 /*  For test    */
 void setData(unsigned char data);
 

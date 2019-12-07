@@ -89,9 +89,6 @@ typedef struct  CUP
 
 
 
-//struct CUP cup = {ESC, '[', '0', '0', ';', '0', '0', 'H', NUL};
-
-
 /* Declarations */
 void UART0_Init(void);
 void InterruptEnable(unsigned long InterruptIndex);
